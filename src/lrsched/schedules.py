@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from math import cos, pi
+from math import cos, floor, pi
 
 from ._types import Schedule
 from ._validate import check_finite, check_positive_int, check_step
@@ -16,15 +16,23 @@ def constant(*, lr: float) -> Schedule:
     return schedule
 
 
-def step_decay(*, base_lr: float, gamma: float, step_size: int) -> Schedule:
-    """Multiply by gamma every step_size steps."""
+def step_decay(*, base_lr: float, drop: float, step_size: int) -> Schedule:
+    """Decay by drop every step_size steps: base_lr * drop ** floor(step / step_size).
+
+    drop must satisfy 0 < drop <= 1 (a multiplicative decay or hold).
+    base_lr must be finite and positive.
+    """
     check_finite("base_lr", base_lr)
-    check_finite("gamma", gamma)
+    if base_lr <= 0.0:
+        raise ValueError(f"base_lr must be a positive number, received {base_lr!r}")
+    check_finite("drop", drop)
+    if not (0.0 < drop <= 1.0):
+        raise ValueError(f"drop must satisfy 0 < drop <= 1, received {drop!r}")
     check_positive_int("step_size", step_size)
 
     def schedule(step: int) -> float:
         check_step(step)
-        return base_lr * gamma ** (step // step_size)
+        return base_lr * float(drop ** floor(step / step_size))
 
     return schedule
 
@@ -166,5 +174,50 @@ def one_cycle(
         t = min(step, total_steps)
         frac = (t - warmup) / (total_steps - warmup)
         return end_lr + 0.5 * (max_lr - end_lr) * (1.0 + cos(pi * frac))
+
+    return schedule
+
+
+def polynomial_decay(*, start_lr: float, end_lr: float, total_steps: int, power: float) -> Schedule:
+    """Polynomial decay from start_lr to end_lr over total_steps, then hold end_lr.
+
+    lr(t) = (start_lr - end_lr) * (1 - min(t, total_steps) / total_steps) ** power + end_lr.
+    power must be positive. total_steps must be a positive integer.
+    start_lr and end_lr must be finite.
+    """
+    check_finite("start_lr", start_lr)
+    check_finite("end_lr", end_lr)
+    check_positive_int("total_steps", total_steps)
+    check_finite("power", power)
+    if power <= 0.0:
+        raise ValueError(f"power must be positive, received {power!r}")
+
+    def schedule(step: int) -> float:
+        check_step(step)
+        t = min(step, total_steps)
+        remaining = 1.0 - t / total_steps
+        return float((start_lr - end_lr) * remaining**power + end_lr)
+
+    return schedule
+
+
+def exponential_decay(*, base_lr: float, decay_rate: float, decay_steps: int) -> Schedule:
+    """Continuous exponential decay: base_lr * decay_rate ** (step / decay_steps).
+
+    decay_rate must satisfy 0 < decay_rate < 1 (strict decay).
+    decay_steps must be a positive integer.
+    base_lr must be finite and positive.
+    """
+    check_finite("base_lr", base_lr)
+    if base_lr <= 0.0:
+        raise ValueError(f"base_lr must be a positive number, received {base_lr!r}")
+    check_finite("decay_rate", decay_rate)
+    if not (0.0 < decay_rate < 1.0):
+        raise ValueError(f"decay_rate must satisfy 0 < decay_rate < 1, received {decay_rate!r}")
+    check_positive_int("decay_steps", decay_steps)
+
+    def schedule(step: int) -> float:
+        check_step(step)
+        return base_lr * float(decay_rate ** (step / decay_steps))
 
     return schedule

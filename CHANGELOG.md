@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0]
+
+### Added
+- `polynomial_decay(*, start_lr, end_lr, total_steps, power)`: polynomial decay from
+  `start_lr` to `end_lr` over `total_steps` following
+  `(start_lr - end_lr) * (1 - t / total_steps) ** power + end_lr`, then holds `end_lr`.
+  `power` must be positive; both learning rates must be finite.
+- `exponential_decay(*, base_lr, decay_rate, decay_steps)`: continuous exponential decay
+  `base_lr * decay_rate ** (step / decay_steps)`. `decay_rate` must satisfy
+  `0 < decay_rate < 1`; `decay_steps` must be a positive integer; `base_lr` must be
+  finite and positive.
+
+### Changed
+- `step_decay` parameter renamed from `gamma` to `drop`, and now validates
+  `0 < drop <= 1` to enforce a true decay or hold. Formula is unchanged:
+  `base_lr * drop ** floor(step / step_size)`. `base_lr` must be finite and positive.
+
 ## [0.3.0]
 
 ### Added

@@ -54,11 +54,16 @@ function, easy to test, plot, log, and reuse anywhere.
 ## Schedules
 
 - `constant`, `step_decay`, `multi_step`, `exponential`
-- `linear`, `polynomial`
+- `linear`, `polynomial`, `polynomial_decay`
+- `exponential_decay`: `base_lr * decay_rate ** (t / decay_steps)` with `0 < decay_rate < 1`
 - `cosine`, `cosine_restarts` (SGDR)
 - `inverse_sqrt` (Transformer)
 - `one_cycle`
 - `triangular`, `triangular2`, `exp_range` (cyclical learning rates)
+
+`polynomial_decay(start_lr, end_lr, total_steps, power)`: `(start_lr - end_lr) * (1 - t/T)**p + end_lr`, holds `end_lr` past `total_steps`.
+`exponential_decay(base_lr, decay_rate, decay_steps)`: `base_lr * decay_rate ** (t / decay_steps)`.
+`step_decay(base_lr, drop, step_size)`: `base_lr * drop ** floor(t / step_size)`, with `0 < drop <= 1`.
 
 ## Composition
 

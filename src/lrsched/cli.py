@@ -24,7 +24,7 @@ def _build(args: argparse.Namespace) -> Schedule:
     if args.schedule == "exponential":
         return exponential(base_lr=args.base_lr, gamma=args.gamma)
     if args.schedule == "step":
-        return step_decay(base_lr=args.base_lr, gamma=args.gamma, step_size=args.step_size)
+        return step_decay(base_lr=args.base_lr, drop=args.drop, step_size=args.step_size)
     if args.schedule == "triangular":
         return triangular(min_lr=args.min_lr, max_lr=args.max_lr, step_size=args.step_size)
     return one_cycle(
@@ -62,7 +62,7 @@ def _parser() -> argparse.ArgumentParser:
 
     step_p = sub.add_parser("step", parents=[common])
     step_p.add_argument("--base-lr", type=float, required=True)
-    step_p.add_argument("--gamma", type=float, required=True)
+    step_p.add_argument("--drop", type=float, required=True)
     step_p.add_argument("--step-size", type=int, required=True)
 
     tri_p = sub.add_parser("triangular", parents=[common])

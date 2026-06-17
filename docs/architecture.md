@@ -20,11 +20,13 @@ parameters in a closure.
 
 With base learning rate b, minimum m, total steps T, and step s clamped to T where noted:
 
-- step_decay: `b * gamma ** (s // step_size)`.
+- step_decay: `b * drop ** floor(s / step_size)`, with `0 < drop <= 1`.
 - multi_step: `b * gamma ** (number of milestones <= s)`.
 - exponential: `b * gamma ** s`.
 - linear: `b + (end - b) * (min(s, T) / T)`.
 - polynomial: `end + (b - end) * (1 - min(s, T) / T) ** power`.
+- polynomial_decay: `(start - end) * (1 - min(s, T) / T) ** power + end`, holds `end` past T.
+- exponential_decay: `b * decay_rate ** (s / decay_steps)`, with `0 < decay_rate < 1`.
 - cosine: `m + 0.5 * (b - m) * (1 + cos(pi * min(s, T) / T))`.
 - cosine_restarts: the cosine formula within the current cycle, where cycle length starts
   at `period` and is multiplied by `t_mult` after each restart. The current cycle is found

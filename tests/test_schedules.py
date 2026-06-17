@@ -1,3 +1,5 @@
+from itertools import pairwise
+
 import pytest
 
 from lrsched import (
@@ -5,11 +7,13 @@ from lrsched import (
     cosine,
     cosine_restarts,
     exponential,
+    exponential_decay,
     inverse_sqrt,
     linear,
     multi_step,
     one_cycle,
     polynomial,
+    polynomial_decay,
     step_decay,
 )
 
@@ -28,7 +32,7 @@ def test_exponential() -> None:
 
 
 def test_step_decay() -> None:
-    s = step_decay(base_lr=1.0, gamma=0.5, step_size=10)
+    s = step_decay(base_lr=1.0, drop=0.5, step_size=10)
     assert s(0) == pytest.approx(1.0)
     assert s(9) == pytest.approx(1.0)
     assert s(10) == pytest.approx(0.5)
@@ -96,6 +100,68 @@ def test_one_cycle() -> None:
     assert s(100) == pytest.approx(0.0001)  # max_lr / final_div
 
 
+def test_polynomial_decay_exact_values() -> None:
+    # lr(t) = (start_lr - end_lr) * (1 - t / total_steps) ** power + end_lr
+    # start_lr=1.0, end_lr=0.0, total_steps=10, power=2
+    # t=0: (1.0 - 0.0) * (1 - 0/10)**2 + 0.0 = 1.0
+    # t=5: 1.0 * (0.5)**2 = 0.25
+    # t=10: 1.0 * (0.0)**2 = 0.0
+    # t=20: clamped to t=10, holds 0.0
+    s = polynomial_decay(start_lr=1.0, end_lr=0.0, total_steps=10, power=2.0)
+    assert s(0) == pytest.approx(1.0)
+    assert s(5) == pytest.approx(0.25)
+    assert s(10) == pytest.approx(0.0)
+    assert s(20) == pytest.approx(0.0)
+
+
+def test_polynomial_decay_hits_boundaries() -> None:
+    s = polynomial_decay(start_lr=2.0, end_lr=0.5, total_steps=8, power=3.0)
+    # t=0: (2.0 - 0.5) * 1.0 + 0.5 = 2.0
+    assert s(0) == pytest.approx(2.0)
+    # t=8: (2.0 - 0.5) * 0.0 + 0.5 = 0.5
+    assert s(8) == pytest.approx(0.5)
+    assert s(100) == pytest.approx(0.5)  # held past the end
+
+
+def test_polynomial_decay_monotone_nonincreasing_when_decaying() -> None:
+    s = polynomial_decay(start_lr=1.0, end_lr=0.0, total_steps=20, power=1.5)
+    values = [s(i) for i in range(21)]
+    for a, b in pairwise(values):
+        assert b <= a + 1e-9
+
+
+def test_exponential_decay_exact_values() -> None:
+    # lr(t) = base_lr * decay_rate ** (t / decay_steps)
+    # base_lr=1.0, decay_rate=0.5, decay_steps=10
+    # t=0:  1.0 * 0.5 ** 0.0 = 1.0
+    # t=10: 1.0 * 0.5 ** 1.0 = 0.5
+    # t=20: 1.0 * 0.5 ** 2.0 = 0.25
+    # t=5:  1.0 * 0.5 ** 0.5 = sqrt(0.5) ~ 0.7071067811865476
+    s = exponential_decay(base_lr=1.0, decay_rate=0.5, decay_steps=10)
+    assert s(0) == pytest.approx(1.0)
+    assert s(10) == pytest.approx(0.5)
+    assert s(20) == pytest.approx(0.25)
+    assert s(5) == pytest.approx(0.5**0.5)
+
+
+def test_exponential_decay_monotone_decreasing() -> None:
+    s = exponential_decay(base_lr=0.1, decay_rate=0.9, decay_steps=5)
+    values = [s(i) for i in range(50)]
+    for a, b in pairwise(values):
+        assert b <= a + 1e-12
+
+
+def test_step_decay_piecewise_constant() -> None:
+    # Within each interval [k*step_size, (k+1)*step_size) the value is constant.
+    s = step_decay(base_lr=1.0, drop=0.5, step_size=5)
+    for step in range(0, 5):
+        assert s(step) == pytest.approx(1.0)
+    for step in range(5, 10):
+        assert s(step) == pytest.approx(0.5)
+    for step in range(10, 15):
+        assert s(step) == pytest.approx(0.25)
+
+
 def test_validation() -> None:
     with pytest.raises(ValueError):
         constant(lr=float("inf"))
@@ -105,3 +171,36 @@ def test_validation() -> None:
         one_cycle(max_lr=1.0, total_steps=100, pct_start=1.5, initial_div=25.0, final_div=1e4)
     with pytest.raises(ValueError):
         constant(lr=0.1)(-1)
+    # polynomial_decay validation
+    with pytest.raises(ValueError):
+        polynomial_decay(start_lr=1.0, end_lr=0.0, total_steps=10, power=0.0)
+    with pytest.raises(ValueError):
+        polynomial_decay(start_lr=1.0, end_lr=0.0, total_steps=10, power=-1.0)
+    with pytest.raises(ValueError):
+        polynomial_decay(start_lr=float("nan"), end_lr=0.0, total_steps=10, power=1.0)
+    with pytest.raises(ValueError):
+        polynomial_decay(start_lr=1.0, end_lr=0.0, total_steps=0, power=1.0)
+    with pytest.raises(ValueError):
+        polynomial_decay(start_lr=1.0, end_lr=0.0, total_steps=10, power=1.0)(-1)
+    # exponential_decay validation
+    with pytest.raises(ValueError):
+        exponential_decay(base_lr=1.0, decay_rate=0.0, decay_steps=10)
+    with pytest.raises(ValueError):
+        exponential_decay(base_lr=1.0, decay_rate=1.0, decay_steps=10)
+    with pytest.raises(ValueError):
+        exponential_decay(base_lr=1.0, decay_rate=1.1, decay_steps=10)
+    with pytest.raises(ValueError):
+        exponential_decay(base_lr=0.0, decay_rate=0.9, decay_steps=10)
+    with pytest.raises(ValueError):
+        exponential_decay(base_lr=1.0, decay_rate=0.9, decay_steps=0)
+    with pytest.raises(ValueError):
+        exponential_decay(base_lr=1.0, decay_rate=0.9, decay_steps=10)(-1)
+    # step_decay validation
+    with pytest.raises(ValueError):
+        step_decay(base_lr=1.0, drop=0.0, step_size=10)
+    with pytest.raises(ValueError):
+        step_decay(base_lr=1.0, drop=1.1, step_size=10)
+    with pytest.raises(ValueError):
+        step_decay(base_lr=0.0, drop=0.5, step_size=10)
+    with pytest.raises(ValueError):
+        step_decay(base_lr=1.0, drop=0.5, step_size=10)(-1)

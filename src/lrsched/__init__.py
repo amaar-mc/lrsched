@@ -9,11 +9,13 @@ from .schedules import (
     cosine,
     cosine_restarts,
     exponential,
+    exponential_decay,
     inverse_sqrt,
     linear,
     multi_step,
     one_cycle,
     polynomial,
+    polynomial_decay,
     step_decay,
 )
 
@@ -25,11 +27,13 @@ __all__ = [
     "cosine_restarts",
     "exp_range",
     "exponential",
+    "exponential_decay",
     "inverse_sqrt",
     "linear",
     "multi_step",
     "one_cycle",
     "polynomial",
+    "polynomial_decay",
     "sample",
     "scale_by_group",
     "sequential",
@@ -38,4 +42,4 @@ __all__ = [
     "triangular2",
     "with_warmup",
 ]
-__version__ = "0.3.0"
+__version__ = "0.4.0"
