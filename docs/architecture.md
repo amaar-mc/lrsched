@@ -43,6 +43,21 @@ global step into the active phase and passes a phase-local step to that phase's 
 Finite schedules clamp the step to their total, so they hold their final value rather than
 extrapolating past the end. A negative step raises, since it is almost always a bug.
 
+## Cyclical learning rates
+
+`clr.py` implements the Smith (2017) cyclical schedules. A cycle spans `2 * step_size`
+steps. With `cycle = 1 + step // (2 * step_size)` and `height = max(0, 1 - |step /
+step_size - 2 * cycle + 1|)`, the rate is `min_lr + (max_lr - min_lr) * height` for
+`triangular`. `triangular2` multiplies the amplitude by `0.5 ** (cycle - 1)`, and
+`exp_range` multiplies it by `gamma ** step`.
+
+## Command line
+
+`cli.py` exposes a `lrsched` console script that builds a schedule from subcommand flags
+and prints `sample(schedule, num_steps=steps)` as one value per step, or as a sparkline.
+`run(argv)` is the testable entry point and `main()` is the console hook, so tests drive
+the CLI without touching `sys.argv`.
+
 ## Why pure Python
 
 The formulas are small and exact. Implementing them with no dependencies means the same

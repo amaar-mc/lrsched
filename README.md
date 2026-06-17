@@ -58,6 +58,7 @@ function, easy to test, plot, log, and reuse anywhere.
 - `cosine`, `cosine_restarts` (SGDR)
 - `inverse_sqrt` (Transformer)
 - `one_cycle`
+- `triangular`, `triangular2`, `exp_range` (cyclical learning rates)
 
 ## Composition
 
@@ -68,6 +69,17 @@ function, easy to test, plot, log, and reuse anywhere.
 Parameters are required keyword arguments, so every schedule reads explicitly at the call
 site. Schedules hold their final value past the end rather than erroring, and a negative
 step raises.
+
+## Command line
+
+Sample a schedule from the terminal, one value per step or as a sparkline:
+
+```sh
+lrsched cosine --base-lr 1e-3 --min-lr 1e-5 --total-steps 1000 --steps 1000
+lrsched triangular --min-lr 1e-4 --max-lr 1e-2 --step-size 200 --steps 800 --sparkline
+```
+
+Supports cosine, linear, exponential, step, triangular, and one-cycle.
 
 ## Examples
 

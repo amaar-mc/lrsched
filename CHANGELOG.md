@@ -7,8 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Planned
-- Cyclical triangular schedules.
-- A small CLI to print or sample a schedule.
+- Per-parameter-group multipliers.
+
+## [0.2.0]
+
+### Added
+- Cyclical learning rates (Smith, 2017): `triangular`, `triangular2` (amplitude halves each cycle), and `exp_range` (amplitude decays by gamma).
+- A `lrsched` command-line tool to sample a schedule, printing one value per step or a sparkline. Supports cosine, linear, exponential, step, triangular, and one-cycle.
 
 ## [0.1.0]
 
