@@ -70,6 +70,25 @@ Parameters are required keyword arguments, so every schedule reads explicitly at
 site. Schedules hold their final value past the end rather than erroring, and a negative
 step raises.
 
+## Per-parameter-group learning rates
+
+`scale_by_group` applies fixed per-group multipliers to any base schedule, returning a
+function from step to `dict[str, float]`. Useful for discriminative learning rates where
+different layers or modules train at different rates:
+
+```python
+from lrsched import cosine, scale_by_group
+
+base = cosine(base_lr=1e-3, min_lr=1e-5, total_steps=1000)
+group_lr = scale_by_group(base, multipliers={"backbone": 0.1, "head": 1.0})
+
+lrs = group_lr(250)  # {"backbone": ..., "head": ...}
+# plug into your optimizer's param_groups, keyed by name
+```
+
+Each multiplier must be a positive finite number. An empty mapping and non-positive or
+non-finite multipliers all raise `ValueError` with a descriptive message.
+
 ## Command line
 
 Sample a schedule from the terminal, one value per step or as a sparkline:

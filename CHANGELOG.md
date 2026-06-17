@@ -6,8 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Planned
-- Per-parameter-group multipliers.
+## [0.3.0]
+
+### Added
+- `scale_by_group(schedule, *, multipliers)` applies per-group learning-rate multipliers to
+  any base schedule, returning a function from step to `dict[str, float]`. Designed for
+  discriminative or layer-wise learning rates: each named group scales the base rate by its
+  fixed positive multiplier. Also exports `GroupSchedule` as a type alias for the return type.
 
 ## [0.2.0]
 

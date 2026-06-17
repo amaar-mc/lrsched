@@ -13,6 +13,8 @@ parameters in a closure.
   closure that validates the step and computes the rate.
 - `compose.py` holds `with_warmup`, `sequential`, and `sample`, which operate on schedules
   rather than parameters.
+- `groups.py` holds `scale_by_group`, which wraps any schedule with per-group multipliers
+  and returns a `GroupSchedule` (`Callable[[int], dict[str, float]]`).
 
 ## Formulas
 
@@ -57,6 +59,13 @@ step_size - 2 * cycle + 1|)`, the rate is `min_lr + (max_lr - min_lr) * height` 
 and prints `sample(schedule, num_steps=steps)` as one value per step, or as a sparkline.
 `run(argv)` is the testable entry point and `main()` is the console hook, so tests drive
 the CLI without touching `sys.argv`.
+
+## Per-group multipliers
+
+`scale_by_group(schedule, multipliers=...)` validates the multipliers once (all must be
+positive and finite, mapping must be non-empty), snapshots the dict, and returns a closure
+that evaluates `schedule(step)` and multiplies each entry. The `GroupSchedule` type alias
+(`Callable[[int], dict[str, float]]`) is exported from the package for type annotations.
 
 ## Why pure Python
 
