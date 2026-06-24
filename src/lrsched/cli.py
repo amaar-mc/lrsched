@@ -3,7 +3,14 @@ import argparse
 from ._types import Schedule
 from .clr import triangular
 from .compose import sample
-from .schedules import cosine, exponential, linear, one_cycle, step_decay
+from .schedules import (
+    cosine,
+    exponential,
+    linear,
+    one_cycle,
+    step_decay,
+    warmup_stable_decay,
+)
 
 _BARS = " .:-=+*#%@"
 
@@ -27,6 +34,16 @@ def _build(args: argparse.Namespace) -> Schedule:
         return step_decay(base_lr=args.base_lr, drop=args.drop, step_size=args.step_size)
     if args.schedule == "triangular":
         return triangular(min_lr=args.min_lr, max_lr=args.max_lr, step_size=args.step_size)
+    if args.schedule == "wsd":
+        return warmup_stable_decay(
+            base_lr=args.base_lr,
+            warmup_steps=args.warmup_steps,
+            decay_steps=args.decay_steps,
+            total_steps=args.total_steps,
+            final_lr=args.final_lr,
+            warmup_start=args.warmup_start,
+            decay_shape=args.decay_shape,
+        )
     return one_cycle(
         max_lr=args.max_lr,
         total_steps=args.total_steps,
@@ -69,6 +86,15 @@ def _parser() -> argparse.ArgumentParser:
     tri_p.add_argument("--min-lr", type=float, required=True)
     tri_p.add_argument("--max-lr", type=float, required=True)
     tri_p.add_argument("--step-size", type=int, required=True)
+
+    wsd_p = sub.add_parser("wsd", parents=[common])
+    wsd_p.add_argument("--base-lr", type=float, required=True)
+    wsd_p.add_argument("--warmup-steps", type=int, required=True)
+    wsd_p.add_argument("--decay-steps", type=int, required=True)
+    wsd_p.add_argument("--total-steps", type=int, required=True)
+    wsd_p.add_argument("--final-lr", type=float, required=True)
+    wsd_p.add_argument("--warmup-start", type=float, required=True)
+    wsd_p.add_argument("--decay-shape", choices=["linear", "1-sqrt"], required=True)
 
     one_p = sub.add_parser("one-cycle", parents=[common])
     one_p.add_argument("--max-lr", type=float, required=True)

@@ -34,6 +34,11 @@ With base learning rate b, minimum m, total steps T, and step s clamped to T whe
 - inverse_sqrt: `b * s / warmup` during warmup, then `b * sqrt(warmup / s)`.
 - one_cycle: a cosine ramp from `max_lr / initial_div` up to `max_lr` over the first
   `pct_start` of training, then a cosine anneal down to `max_lr / final_div`.
+- warmup_stable_decay: a linear warmup from `warmup_start` to `b` over `warmup_steps`, a
+  stable plateau at `b`, then a decay over the final `decay_steps` to `final_lr`. With
+  `progress = (min(s, T) - (T - decay_steps)) / decay_steps`, the decay factor is
+  `1 - progress` for `linear` and `1 - sqrt(progress)` for `1-sqrt`, and the rate is
+  `final_lr + (b - final_lr) * factor`.
 
 ## Composition
 

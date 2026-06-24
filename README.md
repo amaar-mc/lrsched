@@ -59,11 +59,22 @@ function, easy to test, plot, log, and reuse anywhere.
 - `cosine`, `cosine_restarts` (SGDR)
 - `inverse_sqrt` (Transformer)
 - `one_cycle`
+- `warmup_stable_decay` (WSD / trapezoidal)
 - `triangular`, `triangular2`, `exp_range` (cyclical learning rates)
 
 `polynomial_decay(start_lr, end_lr, total_steps, power)`: `(start_lr - end_lr) * (1 - t/T)**p + end_lr`, holds `end_lr` past `total_steps`.
 `exponential_decay(base_lr, decay_rate, decay_steps)`: `base_lr * decay_rate ** (t / decay_steps)`.
 `step_decay(base_lr, drop, step_size)`: `base_lr * drop ** floor(t / step_size)`, with `0 < drop <= 1`.
+
+`warmup_stable_decay(base_lr, warmup_steps, decay_steps, total_steps, final_lr, warmup_start, decay_shape)`:
+the WSD (Warmup-Stable-Decay), or trapezoidal, schedule from the MiniCPM line of work
+([Hu et al., 2024](https://arxiv.org/abs/2404.06395)), now common in LLM pretraining. It
+linearly warms up from `warmup_start` to `base_lr` over `warmup_steps`, holds `base_lr` on
+a stable plateau, then decays to `final_lr` over the final `decay_steps`. `decay_shape` is
+required and must be `"linear"` or `"1-sqrt"`; the `1-sqrt` shape
+(`base_lr` scaled by `1 - sqrt(progress)`, interpolated to `final_lr`) is the decay leg the
+WSD papers recommend. `warmup_steps + decay_steps` must not exceed `total_steps`; set either
+to zero to drop that phase.
 
 ## Composition
 
@@ -103,7 +114,7 @@ lrsched cosine --base-lr 1e-3 --min-lr 1e-5 --total-steps 1000 --steps 1000
 lrsched triangular --min-lr 1e-4 --max-lr 1e-2 --step-size 200 --steps 800 --sparkline
 ```
 
-Supports cosine, linear, exponential, step, triangular, and one-cycle.
+Supports cosine, linear, exponential, step, triangular, wsd, and one-cycle.
 
 ## Examples
 

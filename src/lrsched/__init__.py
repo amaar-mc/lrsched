@@ -17,6 +17,7 @@ from .schedules import (
     polynomial,
     polynomial_decay,
     step_decay,
+    warmup_stable_decay,
 )
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "step_decay",
     "triangular",
     "triangular2",
+    "warmup_stable_decay",
     "with_warmup",
 ]
-__version__ = "0.4.0"
+__version__ = "0.5.0"

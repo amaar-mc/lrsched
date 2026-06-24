@@ -34,6 +34,35 @@ def test_triangular_sparkline(capsys: pytest.CaptureFixture[str]) -> None:
     assert len(out) == 20  # one character per sampled step
 
 
+def test_wsd_runs(capsys: pytest.CaptureFixture[str]) -> None:
+    code = run(
+        [
+            "wsd",
+            "--base-lr",
+            "1.0",
+            "--warmup-steps",
+            "10",
+            "--decay-steps",
+            "10",
+            "--total-steps",
+            "30",
+            "--final-lr",
+            "0.0",
+            "--warmup-start",
+            "0.0",
+            "--decay-shape",
+            "1-sqrt",
+            "--steps",
+            "31",
+        ]
+    )
+    assert code == 0
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == 31
+    assert lines[10].split("\t")[1] == "1"  # base_lr at end of warmup
+    assert lines[30].split("\t")[1] == "0"  # final_lr at the final step
+
+
 def test_one_cycle_runs(capsys: pytest.CaptureFixture[str]) -> None:
     code = run(
         [

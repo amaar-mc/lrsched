@@ -1,4 +1,5 @@
 from itertools import pairwise
+from math import sqrt
 
 import pytest
 
@@ -15,6 +16,7 @@ from lrsched import (
     polynomial,
     polynomial_decay,
     step_decay,
+    warmup_stable_decay,
 )
 
 
@@ -162,6 +164,122 @@ def test_step_decay_piecewise_constant() -> None:
         assert s(step) == pytest.approx(0.25)
 
 
+def test_warmup_stable_decay_linear_exact_values() -> None:
+    # warmup 0->1 over [0,10), stable 1.0 over [10,20), linear decay 1->0 over [20,30].
+    s = warmup_stable_decay(
+        base_lr=1.0,
+        warmup_steps=10,
+        decay_steps=10,
+        total_steps=30,
+        final_lr=0.0,
+        warmup_start=0.0,
+        decay_shape="linear",
+    )
+    assert s(0) == pytest.approx(0.0)  # warmup start
+    assert s(5) == pytest.approx(0.5)  # halfway up the warmup ramp
+    assert s(10) == pytest.approx(1.0)  # end of warmup == base_lr
+    assert s(15) == pytest.approx(1.0)  # stable plateau
+    assert s(19) == pytest.approx(1.0)  # last stable step
+    assert s(20) == pytest.approx(1.0)  # decay_start, factor 1 -> base_lr
+    assert s(25) == pytest.approx(0.5)  # mid linear decay
+    assert s(30) == pytest.approx(0.0)  # final_lr
+    assert s(40) == pytest.approx(0.0)  # held past the end
+
+
+def test_warmup_stable_decay_one_minus_sqrt_exact_values() -> None:
+    # Same phases, 1-sqrt decay leg: lr = final + (base - final) * (1 - sqrt(progress)).
+    s = warmup_stable_decay(
+        base_lr=1.0,
+        warmup_steps=10,
+        decay_steps=10,
+        total_steps=30,
+        final_lr=0.0,
+        warmup_start=0.0,
+        decay_shape="1-sqrt",
+    )
+    assert s(20) == pytest.approx(1.0)  # progress 0 -> base_lr
+    # step 21: progress = 0.1, factor = 1 - sqrt(0.1)
+    assert s(21) == pytest.approx(1.0 - sqrt(0.1))
+    # step 25: progress = 0.5, factor = 1 - sqrt(0.5)
+    assert s(25) == pytest.approx(1.0 - sqrt(0.5))
+    assert s(30) == pytest.approx(0.0)  # progress 1 -> final_lr
+
+
+def test_warmup_stable_decay_nonzero_endpoints() -> None:
+    # warmup_start=0.2, base_lr=1.0, final_lr=0.1.
+    s = warmup_stable_decay(
+        base_lr=1.0,
+        warmup_steps=10,
+        decay_steps=10,
+        total_steps=30,
+        final_lr=0.1,
+        warmup_start=0.2,
+        decay_shape="linear",
+    )
+    assert s(0) == pytest.approx(0.2)  # warmup start
+    assert s(5) == pytest.approx(0.6)  # 0.2 + (1.0 - 0.2) * 0.5
+    assert s(10) == pytest.approx(1.0)  # base_lr
+    assert s(25) == pytest.approx(0.55)  # 0.1 + (1.0 - 0.1) * 0.5
+    assert s(30) == pytest.approx(0.1)  # final_lr
+
+
+def test_warmup_stable_decay_phase_monotonicity() -> None:
+    s = warmup_stable_decay(
+        base_lr=1.0,
+        warmup_steps=10,
+        decay_steps=10,
+        total_steps=30,
+        final_lr=0.0,
+        warmup_start=0.0,
+        decay_shape="1-sqrt",
+    )
+    warmup = [s(i) for i in range(11)]
+    for a, b in pairwise(warmup):
+        assert b >= a - 1e-12  # non-decreasing through warmup
+    stable = [s(i) for i in range(10, 21)]
+    for v in stable:
+        assert v == pytest.approx(1.0)  # flat plateau
+    decay = [s(i) for i in range(20, 31)]
+    for a, b in pairwise(decay):
+        assert b <= a + 1e-12  # non-increasing through decay
+
+
+def test_warmup_stable_decay_zero_warmup_reduces_to_stable_decay() -> None:
+    # No warmup: starts at base_lr immediately, then decays.
+    s = warmup_stable_decay(
+        base_lr=1.0,
+        warmup_steps=0,
+        decay_steps=10,
+        total_steps=20,
+        final_lr=0.0,
+        warmup_start=0.0,
+        decay_shape="linear",
+    )
+    assert s(0) == pytest.approx(1.0)  # starts at base_lr, no ramp
+    assert s(9) == pytest.approx(1.0)  # stable
+    assert s(10) == pytest.approx(1.0)  # decay_start
+    assert s(15) == pytest.approx(0.5)  # mid linear decay
+    assert s(20) == pytest.approx(0.0)  # final_lr
+
+
+def test_warmup_stable_decay_zero_decay_reduces_to_warmup_then_constant() -> None:
+    # No decay: warmup up to base_lr, then hold base_lr for the rest (final_lr unused).
+    s = warmup_stable_decay(
+        base_lr=1.0,
+        warmup_steps=10,
+        decay_steps=0,
+        total_steps=20,
+        final_lr=0.0,
+        warmup_start=0.0,
+        decay_shape="linear",
+    )
+    assert s(0) == pytest.approx(0.0)  # warmup start
+    assert s(5) == pytest.approx(0.5)  # ramp
+    assert s(10) == pytest.approx(1.0)  # base_lr
+    assert s(20) == pytest.approx(1.0)  # held at base_lr, no decay phase
+    assert s(50) == pytest.approx(1.0)  # held past the end
+
+
 def test_validation() -> None:
     with pytest.raises(ValueError):
         constant(lr=float("inf"))
@@ -204,3 +322,84 @@ def test_validation() -> None:
         step_decay(base_lr=0.0, drop=0.5, step_size=10)
     with pytest.raises(ValueError):
         step_decay(base_lr=1.0, drop=0.5, step_size=10)(-1)
+    # warmup_stable_decay validation
+    with pytest.raises(ValueError):  # warmup + decay exceeds total
+        warmup_stable_decay(
+            base_lr=1.0,
+            warmup_steps=10,
+            decay_steps=15,
+            total_steps=20,
+            final_lr=0.0,
+            warmup_start=0.0,
+            decay_shape="linear",
+        )
+    with pytest.raises(ValueError):  # unknown decay shape
+        warmup_stable_decay(
+            base_lr=1.0,
+            warmup_steps=5,
+            decay_steps=5,
+            total_steps=20,
+            final_lr=0.0,
+            warmup_start=0.0,
+            decay_shape="cosine",
+        )
+    with pytest.raises(ValueError):  # negative base_lr
+        warmup_stable_decay(
+            base_lr=-1.0,
+            warmup_steps=5,
+            decay_steps=5,
+            total_steps=20,
+            final_lr=0.0,
+            warmup_start=0.0,
+            decay_shape="linear",
+        )
+    with pytest.raises(ValueError):  # negative final_lr
+        warmup_stable_decay(
+            base_lr=1.0,
+            warmup_steps=5,
+            decay_steps=5,
+            total_steps=20,
+            final_lr=-0.1,
+            warmup_start=0.0,
+            decay_shape="linear",
+        )
+    with pytest.raises(ValueError):  # non-finite base_lr
+        warmup_stable_decay(
+            base_lr=float("nan"),
+            warmup_steps=5,
+            decay_steps=5,
+            total_steps=20,
+            final_lr=0.0,
+            warmup_start=0.0,
+            decay_shape="linear",
+        )
+    with pytest.raises(ValueError):  # negative warmup_steps
+        warmup_stable_decay(
+            base_lr=1.0,
+            warmup_steps=-1,
+            decay_steps=5,
+            total_steps=20,
+            final_lr=0.0,
+            warmup_start=0.0,
+            decay_shape="linear",
+        )
+    with pytest.raises(ValueError):  # total_steps not positive
+        warmup_stable_decay(
+            base_lr=1.0,
+            warmup_steps=0,
+            decay_steps=0,
+            total_steps=0,
+            final_lr=0.0,
+            warmup_start=0.0,
+            decay_shape="linear",
+        )
+    with pytest.raises(ValueError):  # negative step
+        warmup_stable_decay(
+            base_lr=1.0,
+            warmup_steps=5,
+            decay_steps=5,
+            total_steps=20,
+            final_lr=0.0,
+            warmup_start=0.0,
+            decay_shape="linear",
+        )(-1)

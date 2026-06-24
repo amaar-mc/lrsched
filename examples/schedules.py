@@ -3,7 +3,7 @@
 Run with: python examples/schedules.py
 """
 
-from lrsched import cosine, one_cycle, sample, with_warmup
+from lrsched import cosine, one_cycle, sample, warmup_stable_decay, with_warmup
 
 BARS = " .:-=+*#%@"
 
@@ -23,6 +23,15 @@ named = {
     ),
     "one_cycle": one_cycle(
         max_lr=1.0, total_steps=total, pct_start=0.3, initial_div=25.0, final_div=1000.0
+    ),
+    "wsd": warmup_stable_decay(
+        base_lr=1.0,
+        warmup_steps=10,
+        decay_steps=20,
+        total_steps=total,
+        final_lr=0.0,
+        warmup_start=0.0,
+        decay_shape="1-sqrt",
     ),
 }
 

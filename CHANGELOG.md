@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-23
+
+### Added
+- `warmup_stable_decay(*, base_lr, warmup_steps, decay_steps, total_steps, final_lr,
+  warmup_start, decay_shape)`: the Warmup-Stable-Decay (WSD), or trapezoidal, schedule from
+  the MiniCPM line of work (Hu et al., 2024), used in recent LLM pretraining. Linear warmup
+  from `warmup_start` to `base_lr` over `warmup_steps`, a stable plateau at `base_lr`, then a
+  decay to `final_lr` over the final `decay_steps`. `decay_shape` must be chosen explicitly
+  and is one of `"linear"` or `"1-sqrt"` (the `1 - sqrt(progress)` decay leg the WSD papers
+  recommend). `warmup_steps + decay_steps` must not exceed `total_steps`; all step counts
+  must be non-negative; `base_lr`, `final_lr`, and `warmup_start` must be finite and
+  non-negative. Selectable from the CLI as `lrsched wsd`.
+
 ## [0.4.0]
 
 ### Added

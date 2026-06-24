@@ -1,8 +1,10 @@
 from collections.abc import Sequence
-from math import cos, floor, pi
+from math import cos, floor, pi, sqrt
 
 from ._types import Schedule
 from ._validate import check_finite, check_positive_int, check_step
+
+_WSD_DECAY_SHAPES = ("linear", "1-sqrt")
 
 
 def constant(*, lr: float) -> Schedule:
@@ -197,6 +199,72 @@ def polynomial_decay(*, start_lr: float, end_lr: float, total_steps: int, power:
         t = min(step, total_steps)
         remaining = 1.0 - t / total_steps
         return float((start_lr - end_lr) * remaining**power + end_lr)
+
+    return schedule
+
+
+def warmup_stable_decay(
+    *,
+    base_lr: float,
+    warmup_steps: int,
+    decay_steps: int,
+    total_steps: int,
+    final_lr: float,
+    warmup_start: float,
+    decay_shape: str,
+) -> Schedule:
+    """Warmup-Stable-Decay (WSD / trapezoidal) schedule (Hu et al., 2024; MiniCPM).
+
+    Three phases over total_steps:
+      1. Warmup: linearly ramp from warmup_start to base_lr over the first warmup_steps.
+      2. Stable: hold base_lr for the middle phase (total_steps - warmup_steps - decay_steps).
+      3. Decay: over the final decay_steps, decay from base_lr to final_lr.
+
+    decay_shape selects the decay curve and must be chosen explicitly:
+      "linear" interpolates linearly, "1-sqrt" follows base_lr scaled by 1 - sqrt(progress),
+      interpolated to final_lr, the shape the WSD papers recommend for the decay leg.
+
+    warmup_steps + decay_steps must not exceed total_steps; all step counts must be
+    non-negative; base_lr, final_lr, and warmup_start must be finite and non-negative.
+    The schedule holds final_lr past total_steps.
+    """
+    check_finite("base_lr", base_lr)
+    check_finite("final_lr", final_lr)
+    check_finite("warmup_start", warmup_start)
+    check_positive_int("total_steps", total_steps)
+    if base_lr < 0.0:
+        raise ValueError(f"base_lr must be non-negative, received {base_lr!r}")
+    if final_lr < 0.0:
+        raise ValueError(f"final_lr must be non-negative, received {final_lr!r}")
+    if warmup_start < 0.0:
+        raise ValueError(f"warmup_start must be non-negative, received {warmup_start!r}")
+    if not isinstance(warmup_steps, int) or warmup_steps < 0:
+        raise ValueError(f"warmup_steps must be a non-negative integer, received {warmup_steps!r}")
+    if not isinstance(decay_steps, int) or decay_steps < 0:
+        raise ValueError(f"decay_steps must be a non-negative integer, received {decay_steps!r}")
+    if warmup_steps + decay_steps > total_steps:
+        raise ValueError(
+            "warmup_steps + decay_steps must not exceed total_steps, received "
+            f"warmup_steps={warmup_steps!r}, decay_steps={decay_steps!r}, "
+            f"total_steps={total_steps!r}"
+        )
+    if decay_shape not in _WSD_DECAY_SHAPES:
+        raise ValueError(
+            f"decay_shape must be one of {_WSD_DECAY_SHAPES}, received {decay_shape!r}"
+        )
+
+    decay_start = total_steps - decay_steps
+
+    def schedule(step: int) -> float:
+        check_step(step)
+        if step < warmup_steps:
+            return warmup_start + (base_lr - warmup_start) * (step / warmup_steps)
+        if decay_steps == 0 or step < decay_start:
+            return base_lr
+        t = min(step, total_steps)
+        progress = (t - decay_start) / decay_steps
+        factor = 1.0 - progress if decay_shape == "linear" else 1.0 - sqrt(progress)
+        return float(final_lr + (base_lr - final_lr) * factor)
 
     return schedule
 
